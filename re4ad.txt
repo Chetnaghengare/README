@@ -1,3 +1,5 @@
+Weak consistency –BASE
+(Basically Available Soft-state Eventual consistency)
 https://neo4j.com/download-thanks-desktop/?edition=desktop&flavour=winstall64&release=1.6.1&offline=true
 https://astra.datastax.com/273f08ef-144f-4c54-adbd-937497fd25a1
 https://drive.google.com/drive/folders/1JfJukQfHJlbVq8uuKXIeMOJL2C4ldaAo?usp=sharing
