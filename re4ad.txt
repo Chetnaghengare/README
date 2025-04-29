@@ -1,3 +1,5 @@
+https://drive.google.com/drive/folders/1JfJukQfHJlbVq8uuKXIeMOJL2C4ldaAo?usp=sharing
+
 Installation & Configuration: Cassandra Clustering
 Apache Cassandra supports a peer-to-peer architecture. Setting up a Cassandra cluster involves configuring multiple nodes to work together. Below are the detailed steps:
 
