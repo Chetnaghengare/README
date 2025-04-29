@@ -1,132 +1,166 @@
-# README
-cassandra cluster
+## NDB Cluster Setup with Docker
 
-Installation & Configuration: Cassandra Clustering
-Apache Cassandra supports a peer-to-peer architecture. Setting up a Cassandra cluster involves configuring multiple nodes to work together. Below are the detailed steps:
+### Prerequisites
 
-1. Install Cassandra on Each Node
-Prerequisite: Ensure Java (JDK 8 or higher) is installed on all machines , python - 3.8.10.
+#### Docker Installation
 
-Download and install Apache Cassandra on each machine (node) that will be part of the cluster.
+##### Windows (with WSL2)
 
-2. Choose a Cluster Name
-Decide on a unique name for your cluster (e.g., MyCluster).
+1. **Install WSL2**  
+   Open PowerShell as Administrator and run:
 
-This name should be consistent across all nodes in the cluster.
+   ```powershell
+   wsl --install
+   ```
 
-3. Identify Node IP Addresses
-Get the static IP address of each node that will be part of the cluster.
+   Restart your machine if prompted.
 
-Make a list, as you’ll need them for configuration.
+2. **Set WSL2 as default**  
+   Edit or create the `.wslconfig` file in your user directory (e.g., `C:\Users\YourName\.wslconfig`) with the following:
 
-4. Configure Each Node
-Repeat the following steps on each node:
+   ```ini
+   [wsl2]
+   memory=6GB
+   processors=2
+   swap=4GB
+   ```
 
-a. Navigate to the Cassandra Configuration Directory
-bash
-Copy
-Edit
-cd <CASSANDRA_HOME>/conf
-Replace <CASSANDRA_HOME> with the root directory where Cassandra is installed.
+   Then run:
 
-b. Edit the cassandra.yaml File
-Open cassandra.yaml using a text editor (e.g., Notepad, nano, or vi):
+   ```powershell
+   wsl --set-default-version 2
+   ```
 
-bash
-Copy
-Edit
-nano cassandra.yaml
-Modify or ensure the following fields are set properly:
+3. **Install Docker Desktop for Windows**  
+   Download and install from:  
+   https://www.docker.com/products/docker-desktop/
 
-Cluster Name:
+4. **Enable WSL2 integration in Docker Desktop**  
+   Open Docker Desktop → Settings → Resources → WSL Integration → Enable integration for your installed distros.
 
-yaml
-Copy
-Edit
-cluster_name: 'MyCluster'
-Listen Address (IP of the current node):
+##### Linux
 
-yaml
-Copy
-Edit
-listen_address: <IP address of this node>
-RPC Address (used for client communication):
+1. **Install Docker Engine**
 
-yaml
-Copy
-Edit
-rpc_address: <IP address of this node>
-Seeds (comma-separated IP addresses of 1 or more nodes):
+   On Ubuntu/Debian:
 
-yaml
-Copy
-Edit
-seed_provider:
-  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
-    parameters:
-      - seeds: "<IP1>,<IP2>,<IP3>"
-Note: It’s recommended to specify at least two seed nodes for redundancy.
+   ```bash
+   sudo apt update
+   sudo apt install docker.io
+   ```
 
-5. Open and Configure Required Ports
-Make sure the following ports are open and not blocked by firewalls on all nodes:
+   On Fedora:
 
+   ```bash
+   sudo dnf install docker
+   ```
 
-Port	Description
-7000	TCP: Intra-node communication (commands & data)
-9042	TCP: Native transport port for CQL clients (e.g., cqlsh)
-If SSL is enabled, port 7001 is used instead of 7000.
+2. **Start Docker and enable on boot**
 
-6. Start Cassandra Service
-On each node, start the Cassandra service:
+   ```bash
+   sudo systemctl start docker
+   sudo systemctl enable docker
+   ```
 
-bash
-Copy
-Edit
-cassandra -f
-Or use a service manager if installed as a service:
+3. **Add user to docker group (optional)**
 
-bash
-Copy
-Edit
-sudo systemctl start cassandra
-7. Verify Cluster Status
-After starting Cassandra on all nodes, use the following command on any node:
+   ```bash
+   sudo usermod -aG docker $USER
+   ```
 
-bash
-Copy
-Edit
-nodetool status
-This will show a table of all nodes in the cluster with information such as:
+   Log out and log back in for the change to apply.
 
-Node Status (UN = Up/Normal, DN = Down/Normal)
+---
 
-IP address
+### Steps to Set Up and Use NDB Cluster
 
-Load
+#### Step 1: Start the Docker containers
 
-Tokens
+Run the following command to start the containers defined in the `docker-compose.yml` file:
 
-Ownership %
+```bash
+docker-compose up -d
+```
 
-Example output:
+---
 
-markdown
-Copy
-Edit
-Datacenter: datacenter1
-=======================
-Status=Up/Down
-|/ State=Normal/Leaving/Joining/Moving
---  Address     Load       Tokens  Owns (effective)  Host ID                               Rack
-UN  192.168.1.1  256.35 KiB  256     33.3%            xxxxx-...                            rack1
-UN  192.168.1.2  243.22 KiB  256     33.3%            xxxxx-...                            rack1
-UN  192.168.1.3  251.56 KiB  256     33.3%            xxxxx-...                            rack1
-8. Your Cluster is Now Ready
-Once all nodes show up in the nodetool status output and are in "UN" (Up/Normal) state, the cluster is successfully formed and ready to process queries.
+#### Step 2: Verify container health
 
-You can now connect using cqlsh:
+Wait for the containers to become healthy. You can check their status using:
 
-bash
-Copy
-Edit
-cqlsh <any_node_ip> 9042
+```bash
+docker ps
+```
+
+---
+
+#### Step 3: Access the MySQL container
+
+Access the MySQL container using the following command:
+
+```bash
+docker exec -it mysql1 mysql -u root -p
+```
+
+---
+
+#### Step 4: Enter the default password
+
+When prompted, enter the default password specified in the `docker-compose.yml` file.
+
+---
+
+#### Step 5: Create and use a new database
+
+Run the following SQL commands to create a new database and switch to it:
+
+```sql
+CREATE DATABASE test_cluster;
+USE test_cluster;
+```
+
+---
+
+#### Step 6: Create a sample table and insert data
+
+Create a table named `users` and insert sample data into it:
+
+```sql
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=ndbcluster;
+
+INSERT INTO users (name, email) VALUES
+('alice', 'alice@example.com');
+```
+
+---
+
+#### Step 7: Fetch data from the table
+
+Retrieve the data from the `users` table using:
+
+```sql
+SELECT * FROM users;
+```
+
+---
+
+#### Step 8: Stop a specific container
+
+You can stop any container using the following command:
+
+```bash
+docker stop <container_name>
+```
+
+Replace `<container_name>` with the name of the container you want to stop.
+
+---
+
+#### Step 9: Test fault tolerance
+
+Even after stopping a node, the query from Step 7 should still work, demonstrating the fault tolerance of the NDB cluster.
