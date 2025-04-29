@@ -1,15 +1,3 @@
-chetna.ghengare@walchandsangli.ac.in - Kanchan22@1234
-chetnaghengare@gmail.com - Chetna@2003
-https://github.com/veddnd/adsf
-chetnaghengare2003@gmail.com
-
-https://chatgpt.com/share/680feb8e-0a1c-8009-9abb-94d98012f310
-Weak consistency –BASE
-(Basically Available Soft-state Eventual consistency)
-https://neo4j.com/download-thanks-desktop/?edition=desktop&flavour=winstall64&release=1.6.1&offline=true
-https://astra.datastax.com/273f08ef-144f-4c54-adbd-937497fd25a1
-https://drive.google.com/drive/folders/1JfJukQfHJlbVq8uuKXIeMOJL2C4ldaAo?usp=sharing
-
 Installation & Configuration: Cassandra Clustering
 Apache Cassandra supports a peer-to-peer architecture. Setting up a Cassandra cluster involves configuring multiple nodes to work together. Below are the detailed steps:
 
@@ -139,3 +127,53 @@ bash
 Copy
 Edit
 cqlsh <any_node_ip> 9042
+
+
+
+
+
+-----------------------------------------------------------------
+
+
+// Create nodes
+CREATE (:TrainStation { city: 'Copenhagen', lat: 55.672874, lon: 12.56459 });
+
+CREATE (:Office { city: 'Malmo', lat: 55.611784, lon: 12.994341 });
+
+UNWIND range(1, 10000) AS id
+CREATE (:Location {
+    name: 'Location_' + id,
+    lat: 55.5 + rand() * 0.5,
+    lon: 12.5 + rand() * 0.5
+});
+
+// Create relationships from TrainStation to nearby Locations
+MATCH (t:TrainStation), (l:Location)
+WHERE point.distance(
+    point({latitude: t.lat, longitude: t.lon}),
+    point({latitude: l.lat, longitude: l.lon})
+) < 10000
+MERGE (t)-[:TRAVEL_ROUTE]->(l);
+
+// Create relationships from Office to nearby Locations
+MATCH (o:Office), (l:Location)
+WHERE point.distance(
+    point({latitude: o.lat, longitude: o.lon}),
+    point({latitude: l.lat, longitude: l.lon})
+) < 10000
+MERGE (o)-[:TRAVEL_ROUTE]->(l);
+
+// Query closest 5 Locations to TrainStation
+MATCH (t:TrainStation), (l:Location)
+RETURN l.name, 
+    round(point.distance(
+        point({latitude: t.lat, longitude: t.lon}), 
+        point({latitude: l.lat, longitude: l.lon})
+    )) AS distance_meters
+ORDER BY distance_meters ASC
+LIMIT 5;
+
+// Query 100 travel routes
+MATCH (a)-[r:TRAVEL_ROUTE]->(b)
+RETURN a, r, b
+LIMIT 100;
