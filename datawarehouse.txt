@@ -1,0 +1,321 @@
+CREATE DATABASE HeadquarterDB;
+USE HeadquarterDB;
+
+-- Customer Table
+CREATE TABLE Customer (
+    Customer_id INT PRIMARY KEY,
+    Customer_name VARCHAR(255),
+    City_id INT,
+    First_order_date DATE
+);
+
+-- Walk-in Customers Table
+CREATE TABLE Walk_in_customers (
+    Customer_id INT PRIMARY KEY,
+    tourism_guide VARCHAR(255),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (Customer_id) REFERENCES Customer(Customer_id)
+);
+
+-- Mail-order Customers Table
+CREATE TABLE Mail_order_customers (
+    Customer_id INT PRIMARY KEY,
+    post_address VARCHAR(255),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (Customer_id) REFERENCES Customer(Customer_id)
+);
+
+-- Insert Customers
+INSERT INTO Customer VALUES (1, 'John Doe', 101, '2024-01-15');
+INSERT INTO Customer VALUES (2, 'Jane Smith', 102, '2024-02-10');
+
+-- Insert Walk-in Customers
+INSERT INTO Walk_in_customers VALUES (1, 'Tour Guide A', NOW());
+
+-- Insert Mail-order Customers
+INSERT INTO Mail_order_customers VALUES (2, '123 Elm St, LA', NOW());
+
+-- Get all customers
+SELECT * FROM Customer;
+
+-- Get all Walk-in customers
+SELECT * FROM Walk_in_customers;
+
+-- Get all Mail-order customers
+SELECT * FROM Mail_order_customers;
+
+CREATE DATABASE SalesDB;
+USE SalesDB;
+
+-- Headquarters Table
+CREATE TABLE Headquarters (
+    City_id INT PRIMARY KEY,
+    City_name VARCHAR(255),
+    Headquarter_addr VARCHAR(255),
+    State VARCHAR(255),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stores Table
+CREATE TABLE Stores (
+    Store_id INT PRIMARY KEY,
+    City_id INT,
+    Phone VARCHAR(20),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (City_id) REFERENCES Headquarters(City_id)
+);
+
+-- Items Table
+CREATE TABLE Items (
+    Item_id INT PRIMARY KEY,
+    Description VARCHAR(255),
+    Size VARCHAR(50),
+    Weight DECIMAL(10,2),
+    Unit_price DECIMAL(10,2),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stored Items Table
+CREATE TABLE Stored_items (
+    Store_id INT,
+    Item_id INT,
+    Quantity_held INT,
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (Store_id, Item_id),
+    FOREIGN KEY (Store_id) REFERENCES Stores(Store_id),
+    FOREIGN KEY (Item_id) REFERENCES Items(Item_id)
+);
+
+-- Orders Table
+CREATE TABLE Orders (
+    Order_no INT PRIMARY KEY,
+    Order_date DATE,
+    Customer_id INT,
+    FOREIGN KEY (Customer_id) REFERENCES HeadquarterDB.Customer(Customer_id)
+);
+
+-- Ordered Items Table
+CREATE TABLE Ordered_item (
+    Order_no INT,
+    Item_id INT,
+    Quantity_ordered INT,
+    Ordered_price DECIMAL(10,2),
+    Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (Order_no, Item_id),
+    FOREIGN KEY (Order_no) REFERENCES Orders(Order_no),
+    FOREIGN KEY (Item_id) REFERENCES Items(Item_id)
+);
+
+-- Insert Headquarters
+INSERT INTO Headquarters VALUES (101, 'New York', '123 HQ St', 'NY', NOW());
+INSERT INTO Headquarters VALUES (102, 'Los Angeles', '456 HQ Ave', 'CA', NOW());
+
+-- Insert Stores
+INSERT INTO Stores VALUES (1, 101, '123-456-7890', NOW());
+INSERT INTO Stores VALUES (2, 102, '987-654-3210', NOW());
+
+-- Insert Items
+INSERT INTO Items VALUES (1, 'Laptop', '15-inch', 2.5, 1200.00, NOW());
+INSERT INTO Items VALUES (2, 'Smartphone', '6-inch', 0.5, 800.00, NOW());
+
+-- Insert Stored Items
+INSERT INTO Stored_items VALUES (1, 1, 10, NOW());
+INSERT INTO Stored_items VALUES (2, 2, 5, NOW());
+
+-- Insert Orders
+INSERT INTO Orders VALUES (1001, '2024-02-12', 1);
+INSERT INTO Orders VALUES (1002, '2024-02-13', 2);
+
+-- Insert Ordered Items
+INSERT INTO Ordered_item VALUES (1001, 1, 2, 2400.00, NOW());
+INSERT INTO Ordered_item VALUES (1002, 2, 1, 800.00, NOW());
+
+CREATE DATABASE CustomerWarehouseDW;
+USE CustomerWarehouseDW;
+-- drop database CustomerWarehouseDW;
+
+-- 🟢 Dimension Table: Customers
+CREATE TABLE DimCustomer (
+    Customer_id INT PRIMARY KEY,
+    Customer_name VARCHAR(255),
+    City_id INT,
+    City_name VARCHAR(255),
+    State VARCHAR(255),
+    Customer_type ENUM('Walk-in', 'Mail-order', 'Both')
+);
+
+-- 🟢 Dimension Table: Stores (Includes Headquarter Info)
+CREATE TABLE DimStore (
+    Store_id INT PRIMARY KEY,
+    City_id INT,
+    City_name VARCHAR(255),
+    State VARCHAR(255),
+    Phone VARCHAR(20),
+    Headquarter VARCHAR(255),  -- Merged Headquarter Details
+    HQ_Address VARCHAR(255),
+    HQ_State VARCHAR(255)
+);
+
+-- 🟢 Dimension Table: Items
+CREATE TABLE DimItem (
+    Item_id INT PRIMARY KEY,
+    Description VARCHAR(255),
+    Size VARCHAR(50),
+    Weight DECIMAL(10,2),
+    Unit_price DECIMAL(10,2)
+);
+
+-- 🟢 Central Fact Table: FactSales (Orders + Stock Levels)
+CREATE TABLE FactSales (
+    Order_no INT PRIMARY KEY,
+    Order_date DATE,
+    Customer_id INT,
+    Store_id INT,
+    Item_id INT,
+    Quantity_ordered INT,
+    Ordered_price DECIMAL(10,2),
+    Stock_available INT,
+    FOREIGN KEY (Customer_id) REFERENCES DimCustomer(Customer_id),
+    FOREIGN KEY (Store_id) REFERENCES DimStore(Store_id),
+    FOREIGN KEY (Item_id) REFERENCES DimItem(Item_id)
+);
+
+-- Step 2.1: Extract and Transform Data for DimCustomer
+
+INSERT INTO CustomerWarehouseDW.DimCustomer (Customer_id, Customer_name, City_id, City_name, State, Customer_type)
+SELECT 
+    C.Customer_id, 
+    C.Customer_name, 
+    C.City_id, 
+    H.City_name, 
+    H.State,
+    CASE 
+        WHEN WC.Customer_id IS NOT NULL AND MC.Customer_id IS NOT NULL THEN 'Both'
+        WHEN WC.Customer_id IS NOT NULL THEN 'Walk-in'
+        WHEN MC.Customer_id IS NOT NULL THEN 'Mail-order'
+        ELSE 'Unknown'
+    END AS Customer_type
+FROM HeadquarterDB.Customer C
+LEFT JOIN HeadquarterDB.Walk_in_customers WC ON C.Customer_id = WC.Customer_id
+LEFT JOIN HeadquarterDB.Mail_order_customers MC ON C.Customer_id = MC.Customer_id
+LEFT JOIN SalesDB.Headquarters H ON C.City_id = H.City_id;
+
+
+INSERT INTO CustomerWarehouseDW.DimStore (Store_id, City_id, City_name, State, Phone, Headquarter, HQ_Address, HQ_State)
+SELECT 
+    S.Store_id, 
+    S.City_id, 
+    H.City_name, 
+    H.State, 
+    S.Phone, 
+    H.City_name AS Headquarter, 
+    H.Headquarter_addr, 
+    H.State AS HQ_State
+FROM SalesDB.Stores S
+JOIN SalesDB.Headquarters H ON S.City_id = H.City_id;
+
+
+INSERT INTO CustomerWarehouseDW.DimItem (Item_id, Description, Size, Weight, Unit_price)
+SELECT 
+    Item_id, 
+    Description, 
+    Size, 
+    Weight, 
+    Unit_price
+FROM SalesDB.Items;
+
+INSERT INTO CustomerWarehouseDW.FactSales (Order_no, Order_date, Customer_id, Store_id, Item_id, Quantity_ordered, Ordered_price, Stock_available)
+SELECT 
+    O.Order_no, 
+    O.Order_date, 
+    O.Customer_id, 
+    SI.Store_id,  -- Corrected: Now correctly fetching Store_id
+    OI.Item_id, 
+    OI.Quantity_ordered, 
+    OI.Ordered_price,
+    COALESCE(SI.Quantity_held, 0) AS Stock_available
+FROM SalesDB.Orders O
+JOIN SalesDB.Ordered_item OI ON O.Order_no = OI.Order_no
+JOIN SalesDB.Stored_items SI ON OI.Item_id = SI.Item_id;
+
+SELECT * FROM CustomerWarehouseDW.DimCustomer LIMIT 10;
+SELECT * FROM CustomerWarehouseDW.FactSales LIMIT 10;
+
+
+
+-----------------------------------------------------------------
+
+
+USE CustomerWarehouseDW;
+
+-- 1. Find all the stores along with city, state, phone, description, size, weight and  
+-- unit  price that hold a particular item of stock. 
+
+SELECT S.Store_id, S.City_name, S.State, S.Phone, 
+       I.Description, I.Size, I.Weight, I.Unit_price
+FROM CustomerWarehouseDW.FactSales F
+JOIN CustomerWarehouseDW.DimStore S ON F.Store_id = S.Store_id
+JOIN CustomerWarehouseDW.DimItem I ON F.Item_id = I.Item_id
+WHERE I.Item_id = 1;  -- Replace with required Item_id
+
+
+-- 2. Find all the orders along with customer name and order date that can be  
+-- fulfilled by a given store.
+SELECT O.Order_no, O.Order_date, C.Customer_name
+FROM CustomerWarehouseDW.FactSales O
+JOIN CustomerWarehouseDW.DimCustomer C ON O.Customer_id = C.Customer_id
+WHERE O.Store_id = 1;  -- Replace with Store_id
+ 
+-- 3. Find all stores along with city name and phone that hold items ordered by  
+-- given customer. 
+SELECT DISTINCT S.Store_id, S.City_name, S.Phone
+FROM CustomerWarehouseDW.FactSales O
+JOIN CustomerWarehouseDW.DimStore S ON O.Store_id = S.Store_id
+WHERE O.Customer_id = 1;  -- Replace with Customer_id
+
+-- 4. Find the headquarter address along with city and state of all stores that hold  
+-- stocks of an item above a particular level. 
+SELECT S.Headquarter, S.HQ_Address, S.HQ_State
+FROM CustomerWarehouseDW.FactSales F
+JOIN CustomerWarehouseDW.DimStore S ON F.Store_id = S.Store_id
+WHERE F.Stock_available > 5;  -- Replace with required stock threshold
+
+-- 5. For each customer order, show the items ordered along with description, store  
+-- id and city name and the stores that hold the items. 
+SELECT O.Order_no, O.Order_date, C.Customer_name, 
+       I.Description, S.Store_id, S.City_name
+FROM CustomerWarehouseDW.FactSales O
+JOIN CustomerWarehouseDW.DimCustomer C ON O.Customer_id = C.Customer_id
+JOIN CustomerWarehouseDW.DimItem I ON O.Item_id = I.Item_id
+JOIN CustomerWarehouseDW.DimStore S ON O.Store_id = S.Store_id;
+
+-- 6. Find the city and the state in which a given customer lives. 
+SELECT City_name, State 
+FROM CustomerWarehouseDW.DimCustomer 
+WHERE Customer_id = 1;  -- Replace with Customer_id
+
+-- 7. Find the stock level of a particular item in all stores in a particular city. 
+SELECT S.Store_id, S.City_name, F.Stock_available
+FROM CustomerWarehouseDW.FactSales F
+JOIN CustomerWarehouseDW.DimStore S ON F.Store_id = S.Store_id
+WHERE F.Item_id = 1 AND S.City_name = 'New York';  -- Replace with Item_id and City_name
+
+-- 8. Find the items, quantity ordered, customer, store and city of an order. 
+SELECT O.Order_no, I.Description, O.Quantity_ordered, 
+       C.Customer_name, S.Store_id, S.City_name
+FROM CustomerWarehouseDW.FactSales O
+JOIN CustomerWarehouseDW.DimItem I ON O.Item_id = I.Item_id
+JOIN CustomerWarehouseDW.DimCustomer C ON O.Customer_id = C.Customer_id
+JOIN CustomerWarehouseDW.DimStore S ON O.Store_id = S.Store_id
+WHERE O.Order_no = 1001;  -- Replace with Order Number
+
+-- 9. Find the walk in customers, mail order customers and dual customers (both  
+-- walk-in and mail order). 
+SELECT Customer_name, Customer_type 
+FROM CustomerWarehouseDW.DimCustomer
+WHERE Customer_type IN ('Walk-in', 'Mail-order', 'Both');
+
+
+
+
+
